@@ -16,9 +16,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         try {
           // Use internal API to verify credentials (avoids edge runtime issues)
-          const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL 
-            ? `https://${process.env.VERCEL_URL}` 
-            : 'http://localhost:3000'
+          let baseUrl = 'http://localhost:3000'
+          if (process.env.NEXTAUTH_URL) {
+            baseUrl = process.env.NEXTAUTH_URL
+          } else if (process.env.VERCEL_URL) {
+            baseUrl = `https://${process.env.VERCEL_URL}`
+          }
           
           const response = await fetch(`${baseUrl}/api/auth/verify`, {
             method: 'POST',
