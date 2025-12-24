@@ -1,17 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaNeon } from '@prisma/adapter-neon'
-import { Pool, neonConfig } from '@neondatabase/serverless'
-
-// Enable WebSocket for local development only
-if (typeof globalThis.WebSocket === 'undefined') {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const ws = require('ws')
-    neonConfig.webSocketConstructor = ws
-  } catch {
-    // ws not available
-  }
-}
+import { neon } from '@neondatabase/serverless'
 
 // Global cache for prisma instance
 const globalForPrisma = globalThis as unknown as {
@@ -23,18 +12,18 @@ function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL
   
   console.log('=== Creating Prisma Client ===')
-  console.log('DATABASE_URL value:', connectionString ? connectionString.substring(0, 50) + '...' : 'NOT SET')
+  console.log('DATABASE_URL:', connectionString ? 'SET (' + connectionString.length + ' chars)' : 'NOT SET')
   
   if (!connectionString) {
     throw new Error('DATABASE_URL environment variable is not set')
   }
   
-  // Create Pool with explicit connection string
-  const pool = new Pool({ connectionString })
+  // Use neon() HTTP function for serverless (no WebSocket needed)
+  const sql = neon(connectionString)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const adapter = new PrismaNeon(pool as any)
+  const adapter = new PrismaNeon(sql as any)
   
-  console.log('Prisma client created successfully')
+  console.log('Prisma client created successfully with neon()')
   return new PrismaClient({ adapter })
 }
 
