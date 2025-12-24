@@ -2,50 +2,61 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaNeon } from '@prisma/adapter-neon'
 import { Pool, neonConfig } from '@neondatabase/serverless'
 
-// Enable WebSocket for local development
-if (typeof window === 'undefined' && !process.env.VERCEL) {
-  // Only import ws in Node.js environment (not on Vercel edge)
+// Enable WebSocket for local development only
+if (typeof globalThis.WebSocket === 'undefined') {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ws = require('ws')
     neonConfig.webSocketConstructor = ws
   } catch {
-    // ws not available, that's fine on Vercel
+    // ws not available
   }
 }
 
 // Global cache for prisma instance
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+  _prisma: PrismaClient | undefined
 }
 
+// Create Prisma client - called LAZILY only when needed
 function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL
   
-  console.log('Creating Prisma client...')
-  console.log('DATABASE_URL exists:', !!connectionString)
+  console.log('=== Creating Prisma Client ===')
+  console.log('DATABASE_URL value:', connectionString ? connectionString.substring(0, 50) + '...' : 'NOT SET')
   
   if (!connectionString) {
-    console.error('DATABASE_URL not set!')
     throw new Error('DATABASE_URL environment variable is not set')
   }
   
-  // Use Neon Pool for database connection
+  // Create Pool with explicit connection string
   const pool = new Pool({ connectionString })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adapter = new PrismaNeon(pool as any)
+  
+  console.log('Prisma client created successfully')
   return new PrismaClient({ adapter })
 }
 
-// Get or create prisma client
-function getPrisma(): PrismaClient {
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = createPrismaClient()
+// Lazy getter - creates client only on first access
+export function getPrismaClient(): PrismaClient {
+  if (!globalForPrisma._prisma) {
+    globalForPrisma._prisma = createPrismaClient()
   }
-  return globalForPrisma.prisma
+  return globalForPrisma._prisma
 }
 
-export const prisma = getPrisma()
+// For backward compatibility - use a getter that returns the client
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop: string | symbol) {
+    const client = getPrismaClient()
+    const value = (client as unknown as Record<string | symbol, unknown>)[prop]
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  }
+})
 
 export default prisma
 
