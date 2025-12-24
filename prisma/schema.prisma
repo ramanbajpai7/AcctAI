@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User model - accountants who use the platform
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String    // In production, use hashed passwords
+  firm          String?
+  role          String    @default("accountant") // accountant, junior, admin
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  clients       Client[]
+  complianceTasks ComplianceTask[]
+}
+
+// Client model - clients managed by the accountant
+model Client {
+  id            String    @id @default(cuid())
+  userId        String    // The accountant who manages this client
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name          String
+  gstin         String?   // GST Identification Number
+  pan           String?   // PAN Card number
+  email         String?
+  phone         String?
+  address       String?
+  financialYear String?   // e.g., "2024-25"
+  
+  // Portal access
+  portalEnabled Boolean   @default(false)
+  portalEmail   String?   @unique
+  portalPassword String?  // Hashed password for portal access
+  portalToken   String?   // For password reset
+  lastPortalLogin DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  complianceTasks ComplianceTask[]
+  bankStatements  BankStatement[]
+  documents       Document[]
+
+  @@index([userId])
+  @@index([portalEmail])
+}
+
+// Documents uploaded by clients or accountants
+model Document {
+  id            String    @id @default(cuid())
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  name          String
+  type          String    // invoice, receipt, statement, gst-return, itr, other
+  fileName      String
+  fileSize      Int
+  mimeType      String?
+  description   String?
+  
+  uploadedBy    String    // "client" or "accountant"
+  status        String    @default("pending") // pending, reviewed, approved, rejected
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([type])
+}
+
+// Compliance tasks - deadlines for GST, ITR, TDS, etc.
+model ComplianceTask {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  title         String
+  description   String?
+  dueDate       DateTime
+  category      String    // gst, income-tax, tds, roc, audit, other
+  priority      String    @default("medium") // low, medium, high
+  status        String    @default("pending") // pending, in-progress, completed
+  
+  reminderSent  Boolean   @default(false)
+  completedAt   DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+// Bank statement uploads
+model BankStatement {
+  id              String    @id @default(cuid())
+  clientId        String
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  fileName        String
+  fileSize        Int
+  bankName        String?
+  accountNumber   String?
+  startDate       DateTime?
+  endDate         DateTime?
+  
+  transactionCount Int      @default(0)
+  processedCount   Int      @default(0)
+  status          String    @default("processing") // processing, completed, error
+  errorMessage    String?
+  
+  uploadedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  
+  transactions    Transaction[]
+
+  @@index([clientId])
+}
+
+// Individual transactions from bank statements
+model Transaction {
+  id              String    @id @default(cuid())
+  bankStatementId String
+  bankStatement   BankStatement @relation(fields: [bankStatementId], references: [id], onDelete: Cascade)
+  
+  date            DateTime
+  description     String
+  reference       String?   // Transaction reference/cheque number
+  amount          Float
+  type            String    // debit, credit
+  balance         Float?    // Running balance
+  
+  // AI-powered ledger suggestion
+  suggestedLedger String?
+  suggestedConfidence Float? // 0-100 confidence score
+  approvedLedger  String?   // User-approved ledger account
+  
+  status          String    @default("pending") // pending, approved, rejected, exported
+  exportedAt      DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([bankStatementId])
+  @@index([status])
+}
+
+// Ledger accounts - chart of accounts for categorization
+model LedgerAccount {
+  id          String    @id @default(cuid())
+  name        String
+  code        String?   // Account code
+  group       String    // Expenses, Income, Assets, Liabilities
+  subGroup    String?   // e.g., "Direct Expenses", "Indirect Expenses"
+  description String?
+  isDefault   Boolean   @default(true) // true = system default, false = user created
+  
+  createdAt   DateTime  @default(now())
+  
+  @@unique([name])
+}
