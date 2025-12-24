@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/db'
+import { neon } from '@neondatabase/serverless'
 
 // POST /api/auth/verify - Verify user credentials (used by NextAuth)
 export async function POST(request: Request) {
   console.log('=== Auth Verify Start ===')
-  console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL)
+  
+  const connectionString = process.env.DATABASE_URL
+  console.log('DATABASE_URL:', connectionString ? 'SET (' + connectionString.length + ' chars)' : 'NOT SET')
   console.log('Is Vercel:', !!process.env.VERCEL)
+  
+  if (!connectionString) {
+    console.error('DATABASE_URL not set!')
+    return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
+  }
   
   try {
     const body = await request.json()
@@ -18,18 +25,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing credentials' }, { status: 401 })
     }
     
-    // Lookup user in database
-    console.log('Looking up user in database...')
-    const user = await prisma.user.findUnique({
-      where: { email },
-    })
+    // Use direct neon() SQL query
+    const sql = neon(connectionString)
+    console.log('Executing SQL query...')
     
-    console.log('User found:', !!user)
+    const users = await sql`SELECT id, email, name, password, firm, role FROM "User" WHERE email = ${email}`
     
-    if (!user) {
+    console.log('Query result count:', users.length)
+    
+    if (users.length === 0) {
       console.log('User not found in database')
       return NextResponse.json({ error: 'User not found' }, { status: 401 })
     }
+    
+    const user = users[0]
     
     // Verify password (in production, use bcrypt.compare)
     if (user.password === password) {
