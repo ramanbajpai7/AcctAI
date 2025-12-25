@@ -1,7 +1,7 @@
 // Tax Query Chatbot Service
 // AI-powered assistant for answering tax-related questions
 
-import { suggestLedger } from './ollama'
+import { chatWithAI, getAvailableProvider } from './ai'
 
 // Common Indian tax knowledge base
 const taxKnowledge = {
@@ -211,15 +211,47 @@ export async function processTaxQuery(
   // Generic query - use AI if available
   else {
     // Try AI for complex queries
-    answer = `I can help you with:\n\n`
-    answer += `• **GST**: Rates, GSTR filing, due dates, ITC, e-way bills\n`
-    answer += `• **Income Tax**: Tax slabs, deductions, ITR filing, advance tax\n`
-    answer += `• **TDS**: Rates, due dates, TDS returns, Form 16\n`
-    answer += `• **Compliance**: Penalties, interest, reconciliation\n\n`
-    answer += `Please ask a specific question about any of these topics.`
-    sources.push('General tax knowledge')
-    relatedTopics.push('GST rates', 'Income tax slabs', 'TDS rates', 'Filing due dates')
-    confidence = 0.5
+    const provider = getAvailableProvider()
+    
+    if (provider !== 'none') {
+      try {
+        const systemPrompt = `You are an expert Indian tax consultant. Answer questions about:
+- GST (Goods and Services Tax) - rates, filing, ITC, e-way bills
+- Income Tax - slabs, deductions, ITR filing, advance tax
+- TDS (Tax Deducted at Source) - rates, returns, Form 16
+
+Provide accurate, practical answers based on current Indian tax laws (FY 2024-25).
+Format your response in markdown with bullet points.
+Be concise but thorough. Include relevant section numbers when applicable.`
+
+        const response = await chatWithAI([
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: query }
+        ])
+        
+        if (response.content) {
+          answer = response.content
+          sources.push(`AI-powered response (${response.provider})`)
+          relatedTopics.push('Consult a CA for specific advice')
+          confidence = 0.75
+        }
+      } catch (error) {
+        console.error('AI query failed:', error)
+      }
+    }
+    
+    // Fallback if AI didn't respond
+    if (!answer) {
+      answer = `I can help you with:\n\n`
+      answer += `• **GST**: Rates, GSTR filing, due dates, ITC, e-way bills\n`
+      answer += `• **Income Tax**: Tax slabs, deductions, ITR filing, advance tax\n`
+      answer += `• **TDS**: Rates, due dates, TDS returns, Form 16\n`
+      answer += `• **Compliance**: Penalties, interest, reconciliation\n\n`
+      answer += `Please ask a specific question about any of these topics.`
+      sources.push('General tax knowledge')
+      relatedTopics.push('GST rates', 'Income tax slabs', 'TDS rates', 'Filing due dates')
+      confidence = 0.5
+    }
   }
   
   return {

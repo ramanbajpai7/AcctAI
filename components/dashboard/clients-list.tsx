@@ -28,7 +28,9 @@ interface Client {
 export function ClientsList() {
   const [clients, setClients] = useState<Client[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [isSearching, setIsSearching] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [formData, setFormData] = useState({
@@ -42,14 +44,33 @@ export function ClientsList() {
   })
   const [isSaving, setIsSaving] = useState(false)
 
+  // Debounce search query
   useEffect(() => {
-    fetchClients()
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Fetch clients when debounced query changes
+  useEffect(() => {
+    fetchClients(debouncedQuery)
+  }, [debouncedQuery])
+
+  // Initial fetch
+  useEffect(() => {
+    fetchClients("")
   }, [])
 
-  async function fetchClients() {
+  async function fetchClients(query: string = "") {
     try {
-      setIsLoading(true)
-      const res = await fetch("/api/clients")
+      if (clients.length > 0) {
+        setIsSearching(true)
+      } else {
+        setIsLoading(true)
+      }
+      const url = query ? `/api/clients?q=${encodeURIComponent(query)}` : "/api/clients"
+      const res = await fetch(url)
       if (!res.ok) throw new Error("Failed to fetch clients")
       const data = await res.json()
       setClients(data)
@@ -57,6 +78,7 @@ export function ClientsList() {
       toast.error("Failed to load clients")
     } finally {
       setIsLoading(false)
+      setIsSearching(false)
     }
   }
 
@@ -132,12 +154,7 @@ export function ClientsList() {
     setEditingClient(null)
   }
 
-  const filteredClients = clients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (client.gstin && client.gstin.includes(searchQuery)) ||
-      (client.pan && client.pan.toLowerCase().includes(searchQuery.toLowerCase()))
-  )
+  // Server-side search is used, no client-side filtering needed
 
   if (isLoading) {
     return (
@@ -152,9 +169,13 @@ export function ClientsList() {
       {/* Search and filters */}
       <div className="flex gap-4 items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 text-muted-foreground" size={18} />
+          {isSearching ? (
+            <Loader2 className="absolute left-3 top-3 text-muted-foreground animate-spin" size={18} />
+          ) : (
+            <Search className="absolute left-3 top-3 text-muted-foreground" size={18} />
+          )}
           <Input
-            placeholder="Search by name, GSTIN, or PAN..."
+            placeholder="Search by name, GSTIN, PAN, email, phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -251,7 +272,7 @@ export function ClientsList() {
       </div>
 
       {/* Clients table */}
-      {filteredClients.length > 0 ? (
+      {clients.length > 0 ? (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -266,7 +287,7 @@ export function ClientsList() {
                 </tr>
               </thead>
               <tbody>
-                {filteredClients.map((client) => (
+                {clients.map((client) => (
                   <tr
                     key={client.id}
                     className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"

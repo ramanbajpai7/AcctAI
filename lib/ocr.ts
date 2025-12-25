@@ -196,21 +196,56 @@ function extractInvoiceData(text: string): Partial<InvoiceData> {
   return data
 }
 
+// Preprocess image for optimal OCR
+async function preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
+  // Dynamic import sharp for image processing
+  try {
+    const sharp = (await import('sharp')).default
+    
+    const image = sharp(imageBuffer)
+    const metadata = await image.metadata()
+    
+    // Resize if image is too large (max 1500px on longest side for speed)
+    const maxDimension = 1500
+    let processedImage = image
+    
+    if (metadata.width && metadata.height) {
+      const longestSide = Math.max(metadata.width, metadata.height)
+      if (longestSide > maxDimension) {
+        processedImage = image.resize(maxDimension, maxDimension, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+      }
+    }
+    
+    // Convert to grayscale and normalize for better OCR
+    return await processedImage
+      .grayscale()
+      .normalize()
+      .sharpen()
+      .toBuffer()
+  } catch (error) {
+    // If sharp fails, return original buffer
+    console.log('Image preprocessing skipped (sharp not available)')
+    return imageBuffer
+  }
+}
+
 // Perform OCR on image
 export async function scanInvoice(imageBuffer: Buffer): Promise<OCRResult> {
   const startTime = Date.now()
   
   try {
-    // Perform OCR
+    // Preprocess image for faster OCR
+    const processedBuffer = await preprocessImage(imageBuffer)
+    
+    // Perform OCR with optimized settings
     const result = await Tesseract.recognize(
-      imageBuffer,
-      'eng', // Language
+      processedBuffer,
+      'eng',
       {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            // Progress can be tracked here
-          }
-        },
+        // No logger for faster processing
       }
     )
     

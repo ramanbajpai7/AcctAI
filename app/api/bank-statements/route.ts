@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { auth } from '@/auth'
 import { parseCSV, parseExcel, detectFileType } from '@/lib/bank-parser'
-import { suggestLedgerWithAI } from '@/lib/ollama'
+import { suggestLedgerWithAI } from '@/lib/ai'
 
 // POST /api/bank-statements/upload - Upload and parse bank statement
 export async function POST(request: Request) {

@@ -3,7 +3,7 @@ import prisma from '@/lib/db'
 import { auth } from '@/auth'
 
 // GET /api/clients - List all clients for the authenticated user
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth()
     
@@ -11,8 +11,26 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
+    // Get search query from URL params
+    const { searchParams } = new URL(request.url)
+    const query = searchParams.get('q')?.trim() || ''
+    
+    // Build where clause with optional search
+    const whereClause = {
+      userId: session.user.id,
+      ...(query && {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' as const } },
+          { gstin: { contains: query, mode: 'insensitive' as const } },
+          { pan: { contains: query, mode: 'insensitive' as const } },
+          { email: { contains: query, mode: 'insensitive' as const } },
+          { phone: { contains: query, mode: 'insensitive' as const } },
+        ],
+      }),
+    }
+    
     const clients = await prisma.client.findMany({
-      where: { userId: session.user.id },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {

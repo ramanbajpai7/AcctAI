@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { auth } from '@/auth'
-import { suggestLedgerWithAI } from '@/lib/ollama'
+import { suggestLedgerWithAI } from '@/lib/ai'
 
 // POST /api/ai/suggest-ledger - Get AI suggestions for a transaction
 export async function POST(request: Request) {

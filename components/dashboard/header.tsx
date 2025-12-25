@@ -3,7 +3,8 @@
 import type { Session } from "next-auth"
 import { LogoutButton } from "@/components/auth/logout-button"
 import { Button } from "@/components/ui/button"
-import { Bell, Settings } from "lucide-react"
+import { Settings } from "lucide-react"
+import { NotificationDropdown } from "./notification-dropdown"
 
 interface HeaderProps {
   user?: Session["user"]
@@ -19,9 +20,7 @@ export function Header({ user }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-400">
-            <Bell size={20} />
-          </Button>
+          <NotificationDropdown />
           <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-400">
             <Settings size={20} />
           </Button>
