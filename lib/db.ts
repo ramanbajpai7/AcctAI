@@ -1,13 +1,12 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaNeon } from '@prisma/adapter-neon'
-import { neon } from '@neondatabase/serverless'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 
-// Global cache for prisma instance
+// Global cache for prisma instance to prevent multiple instances in development
 const globalForPrisma = globalThis as unknown as {
-  _prisma: PrismaClient | undefined
+  prisma: PrismaClient | undefined
 }
 
-// Create Prisma client - called LAZILY only when needed
 function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL
   
@@ -18,34 +17,24 @@ function createPrismaClient(): PrismaClient {
     throw new Error('DATABASE_URL environment variable is not set')
   }
   
-  // Use neon() HTTP function for serverless (no WebSocket needed)
-  const sql = neon(connectionString)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const adapter = new PrismaNeon(sql as any)
+  // Create pg Pool with the connection string
+  const pool = new Pool({ connectionString })
   
-  console.log('Prisma client created successfully with neon()')
+  // Create the Prisma Pg adapter
+  const adapter = new PrismaPg(pool)
+  
+  console.log('Prisma client created with pg adapter')
+  
+  // In Prisma 7, the adapter handles the connection
   return new PrismaClient({ adapter })
 }
 
-// Lazy getter - creates client only on first access
-export function getPrismaClient(): PrismaClient {
-  if (!globalForPrisma._prisma) {
-    globalForPrisma._prisma = createPrismaClient()
-  }
-  return globalForPrisma._prisma
+// Create or reuse the Prisma client
+export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+
+// In development, store the client in global to prevent multiple instances
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
 }
 
-// For backward compatibility - use a getter that returns the client
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, prop: string | symbol) {
-    const client = getPrismaClient()
-    const value = (client as unknown as Record<string | symbol, unknown>)[prop]
-    if (typeof value === 'function') {
-      return value.bind(client)
-    }
-    return value
-  }
-})
-
 export default prisma
-
