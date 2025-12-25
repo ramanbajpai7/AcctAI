@@ -117,12 +117,40 @@ export function EmailComposer() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function handleSendEmail() {
+  const [isSending, setIsSending] = useState(false)
+
+  async function handleSendEmail() {
     if (!draft) return
     
-    // Open default email client
-    const mailtoLink = `mailto:${draft.to}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`
-    window.open(mailtoLink, '_blank')
+    if (!draft.to) {
+      toast.error("No recipient email address. Please select a client with email.")
+      return
+    }
+    
+    setIsSending(true)
+    try {
+      const res = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: draft.to,
+          subject: draft.subject,
+          body: draft.body,
+        }),
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        toast.success(`Email sent to ${draft.to}!`)
+      } else {
+        toast.error(data.error || "Failed to send email")
+      }
+    } catch (error) {
+      toast.error("Failed to send email. Check your connection.")
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (
@@ -251,10 +279,15 @@ export function EmailComposer() {
               <Button 
                 size="sm"
                 onClick={handleSendEmail}
+                disabled={isSending || !draft.to}
                 className="bg-green-600 hover:bg-green-700"
               >
-                <Send size={14} />
-                <span className="ml-1">Send</span>
+                {isSending ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Send size={14} />
+                )}
+                <span className="ml-1">{isSending ? 'Sending...' : 'Send'}</span>
               </Button>
             </div>
           )}
