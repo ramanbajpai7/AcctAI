@@ -13,8 +13,10 @@ datasource db {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
+  emailVerified DateTime?
   name          String
-  password      String    // In production, use hashed passwords
+  password      String?   // Optional for OAuth users
+  image         String?
   firm          String?
   role          String    @default("accountant") // accountant, junior, admin
   createdAt     DateTime  @default(now())
@@ -22,6 +24,7 @@ model User {
   
   clients       Client[]
   complianceTasks ComplianceTask[]
+  accounts      Account[]
 }
 
 // Client model - clients managed by the accountant
@@ -173,4 +176,25 @@ model LedgerAccount {
   createdAt   DateTime  @default(now())
   
   @@unique([name])
+}
+
+// Account model for OAuth providers (NextAuth.js)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }

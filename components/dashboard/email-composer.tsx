@@ -55,6 +55,15 @@ export function EmailComposer() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  // Handle client selection - auto-fill email
+  function handleClientSelect(clientId: string) {
+    setSelectedClient(clientId)
+    const client = clients.find(c => c.id === clientId)
+    if (client?.email && draft) {
+      setDraft({ ...draft, to: client.email })
+    }
+  }
+
   useEffect(() => {
     fetchClients()
     fetchTemplates()
@@ -166,7 +175,7 @@ export function EmailComposer() {
           {/* Client Selection */}
           <div className="space-y-2">
             <Label>Client (Optional)</Label>
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
+            <Select value={selectedClient} onValueChange={handleClientSelect}>
               <SelectTrigger>
                 <SelectValue placeholder="Select client for personalization" />
               </SelectTrigger>
@@ -295,12 +304,21 @@ export function EmailComposer() {
 
         {draft ? (
           <div className="space-y-4">
-            {draft.to && (
-              <div>
-                <Label className="text-xs text-muted-foreground">To</Label>
-                <p className="text-sm font-medium">{draft.to}</p>
-              </div>
-            )}
+            <div>
+              <Label className="text-xs text-muted-foreground">To</Label>
+              <Input 
+                type="email"
+                placeholder="Enter recipient email"
+                value={draft.to} 
+                onChange={(e) => setDraft({ ...draft, to: e.target.value })}
+                className="font-medium"
+              />
+              {!draft.to && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Please enter recipient email or select a client with email
+                </p>
+              )}
+            </div>
             
             <div>
               <Label className="text-xs text-muted-foreground">Subject</Label>
